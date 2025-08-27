@@ -3,6 +3,10 @@ from datetime import datetime
 from config import DATABASE 
 import os
 import cv2
+import numpy as np
+from logic import *
+from math import sqrt, ceil, floor
+import tempfile
 
 class DatabaseManager:
     def __init__(self, database):
@@ -89,11 +93,11 @@ class DatabaseManager:
         con = sqlite3.connect(self.database)
         with con:
             cur = con.cursor()
-            #try:
-            cur.execute('''SELECT * FROM prizes WHERE used = 0 ORDER BY RANDOM() LIMIT 1''')
-            return cur.fetchall()[0]
-            #except IndexError:
-                #return 'nothing left to get', None
+            try:
+                cur.execute('''SELECT * FROM prizes WHERE used = 0 ORDER BY RANDOM() LIMIT 1''')
+                return cur.fetchall()[0]
+            except IndexError:
+                return 'nothing left to get', None
 
     def get_winners_count(self, prize_id):
         conn = sqlite3.connect(self.database)
@@ -118,13 +122,60 @@ class DatabaseManager:
     ''')
             return cur.fetchall()        
     
+    def get_winners_img(self, user_id):
+        conn = sqlite3.connect(self.database)
+        with conn:
+            cur = conn.cursor()
+            cur.execute(''' 
+    SELECT image FROM winners 
+    INNER JOIN prizes ON 
+    winners.prize_id = prizes.prize_id
+    WHERE user_id = ?''', (user_id, ))
+            return cur.fetchall()
   
 def hide_img(img_name):
     image = cv2.imread(f'img/{img_name}')
-    blurred_image = cv2.GaussianBlur(image, (15, 15), 0)
-    pixelated_image = cv2.resize(blurred_image, (30, 30), interpolation=cv2.INTER_NEAREST)
-    pixelated_image = cv2.resize(pixelated_image, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
-    cv2.imwrite(f'hidden_img/{img_name}', pixelated_image)
+    try:
+        blurred_image = cv2.GaussianBlur(image, (15, 15), 0)
+        pixelated_image = cv2.resize(blurred_image, (30, 30), interpolation=cv2.INTER_NEAREST)
+        pixelated_image = cv2.resize(pixelated_image, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
+        cv2.imwrite(f'hidden_img/{img_name}', pixelated_image)
+    except Exception as e:
+        return 'Failed pixelating the image', None
+
+
+def create_collage(image_paths):
+    images = []
+    for path in image_paths:
+        image = cv2.imread(path)
+        images.append(image)
+
+    num_images = len(images)
+    num_cols = floor(sqrt(num_images)) # Поиск количество картинок по горизонтали
+    num_rows = ceil(num_images/num_cols)  # Поиск количество картинок по вертикали
+    # Создание пустого коллажа
+    collage = np.zeros((num_rows * images[0].shape[0], num_cols * images[0].shape[1], 3), dtype=np.uint8)
+    # Размещение изображений на коллаже
+    for i, image in enumerate(images):
+        row = i // num_cols
+        col = i % num_cols
+        collage[row*image.shape[0]:(row+1)*image.shape[0], col*image.shape[1]:(col+1)*image.shape[1], :] = image
+    return collage
+
+#def collaging(user_id):
+    #m = DatabaseManager(DATABASE)
+    #info = m.get_winners_img(user_id)
+    #prizes = [x[0] for x in info]
+    #image_paths = os.listdir('img')
+    #image_paths = [f'img/{x}' if x in prizes else f'hidden_img/{x}' for x in image_paths]
+    #collage = create_collage(image_paths)
+    #result = cv2.imshow('Collage', collage)
+    #out_path = os.path.join(tempfile.gettempdir(), f'collage_{user_id}.jpg')
+    #cv2.imwrite(out_path, collage)
+    #return out_path
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     manager = DatabaseManager(DATABASE)

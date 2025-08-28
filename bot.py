@@ -112,6 +112,49 @@ def handle_get_my_score(message):
     except Exception as e:
         bot.send_message(user_id, "Произошла ошибка при отправке коллажа.")
 
+@bot.message_handler(commands=['add_picture'])
+def add_picture(message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    role = bot.get_chat_member(chat_id, user_id)
+    if role not in ['administrator', 'creator']:
+        bot.reply_to(message, 'У вас нет прав для добавления изображений.')
+    else:
+        bot.reply_to(message, 'Пожалуйста, отправьте изображение с подписью (названием изображения).')
+        
+@bot.message_handler(content_types=['photo'])
+def handle_pic(message):
+    chat_type = message.chat.type
+    # Разрешаем только в группах/супергруппах с админами (чтобы не ловить чужие фото в личке)
+    if chat_type in ('group', 'supergroup'):
+        member = bot.get_chat_member(message.chat.id, message.from_user.id)
+        if member.status not in ('administrator', 'creator'):
+            return  # тихо игнорируем не-админов
+
+    # Берём самое большое фото
+    file_id = message.photo[-1].file_id
+    file_info = bot.get_file(file_id)
+    file_bytes = bot.download_file(file_info.file_path)
+
+    fname = new_picname()
+    fpath = os.path.join(SAVE_DIR, fname)
+    with open(fpath, "wb") as f:
+        f.write(file_bytes)
+
+    manager.new_pic(fname)
+    bot.send_message(message.chat.id, f"✅ Изображение сохранено как {fname}")
+
+
+
+
+    
+
+#def add_pic(message):
+    #chat_id = message.chat.id
+    #user_id = message.from_user.id
+
+
+
 def polling_thread():
     bot.polling(none_stop=True)
 

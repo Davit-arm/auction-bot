@@ -6,7 +6,9 @@ import cv2
 import numpy as np
 from logic import *
 from math import sqrt, ceil, floor
+import re
 import tempfile
+
 
 class DatabaseManager:
     def __init__(self, database):
@@ -132,7 +134,17 @@ class DatabaseManager:
     winners.prize_id = prizes.prize_id
     WHERE user_id = ?''', (user_id, ))
             return cur.fetchall()
-  
+    
+
+    def new_pic(self, img_name):
+        con = sqlite3.connect(self.database)
+        with con:
+            cur = con.cursor()
+            cur.execute('''INSERT INTO prizes (image) VALUES (?)''', (img_name,))
+            con.commit()
+            return cur.lastrowid
+
+
 def hide_img(img_name):
     image = cv2.imread(f'img/{img_name}')
     try:
@@ -162,6 +174,18 @@ def create_collage(image_paths):
         collage[row*image.shape[0]:(row+1)*image.shape[0], col*image.shape[1]:(col+1)*image.shape[1], :] = image
     return collage
 
+
+SAVE_DIR = 'img_uploads'
+os.makedirs(SAVE_DIR, exist_ok=True)
+_num_re = re.compile(r"^newpic(\d+)\.jpg$", re.IGNORECASE)
+
+def new_picname():
+    max_n = 0
+    for fname in os.listdir(SAVE_DIR):
+        m = _num_re.match(fname)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"newpic{max_n+1}.jpg"
 #def collaging(user_id):
     #m = DatabaseManager(DATABASE)
     #info = m.get_winners_img(user_id)
